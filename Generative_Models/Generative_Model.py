@@ -136,52 +136,111 @@ class GenerativeModel(object):
         self.G.eval()
         dir_path = self.result_dir
         if classe is not None:
-            dir_path = self.result_dir + '/classe-' + str(classe)
+            dir_path = '/export/home/qicheng.lao/CL_results/6400s_new/task_' + str(classe)
 
         if not os.path.exists(dir_path):
             os.makedirs(dir_path)
 
-        image_frame_dim = int(np.floor(np.sqrt(self.sample_num)))
-        if self.conditional:
+        if epoch != self.args.epochs:
+            return
 
+        # for all previous digits
+        for digit in range(classe + 1):
+            digit_path = dir_path + '/' + str(digit)
+            if not os.path.exists(digit_path):
+                os.makedirs(digit_path)
 
-            y = torch.LongTensor(range(self.sample_num)) % self.num_classes
-            y=y.view(self.sample_num, 1)
-
-            y_onehot = torch.FloatTensor(self.sample_num, self.num_classes)
-            y_onehot.zero_()
-            y_onehot.scatter_(1, y, 1.0)
-            y_onehot = variable(y_onehot)
-        else:
-            y_onehot = None
-
-        
-        if fix:
-            """ fixed noise """
+            num = 6400
             if self.conditional:
-                samples = self.G(self.sample_z_, y_onehot)
-            else:
-                samples = self.G(self.sample_z_)
-        else:
-            """ random noise """
-            sample_z_ = variable(self.random_tensor(self.sample_num, self.z_dim), volatile=True)
 
-            if self.conditional:
-                samples = self.G(sample_z_, y_onehot)
-            else:
-                samples = self.G(self.sample_z_)
+                y = torch.LongTensor(range(num)) % self.num_classes
+                y = y.view(num, 1)
 
-        if self.input_size == 1:
-            if self.gpu_mode:
-                samples = samples.cpu().data.numpy()
+                y_onehot = torch.FloatTensor(num, self.num_classes)
+                y_onehot.zero_()
+                y_onehot.scatter_(1, y, 1.0)
+                y_onehot = y_onehot[digit]
+                y_onehot = y_onehot.expand(num, self.num_classes)
+                y_onehot = variable(y_onehot)
             else:
-                samples = samples.data.numpy()
-            samples = samples.transpose(0, 2, 3, 1)
-            save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
-                        dir_path + '/' + self.model_name + '_epoch%03d' % epoch + '.png')
-        else:
-            save_image(samples[:self.sample_num].data, dir_path + '/' + self.model_name + '_epoch%03d' % epoch + '.png',
-                       padding=0)
+                y_onehot = None
+
+            fix = False
+            if fix:
+                """ fixed noise """
+                if self.conditional:
+                    samples = self.G(self.sample_z_, y_onehot)
+                else:
+                    samples = self.G(self.sample_z_)
+            else:
+                """ random noise """
+                sample_z_ = variable(self.random_tensor(num, self.z_dim), volatile=True)
+
+                if self.conditional:
+                    samples = self.G(sample_z_, y_onehot)
+                else:
+                    samples = self.G(self.sample_z_)
+
+            if self.input_size == 1:
+                if self.gpu_mode:
+                    samples = samples.cpu().data.numpy()
+                else:
+                    samples = samples.data.numpy()
+                samples = samples.transpose(0, 2, 3, 1)
+                samples = np.tile(samples, (1,1,1,3))
+                for i in range(num):
+                    scipy.misc.imsave(os.path.join(digit_path, str(i) + '.png'), scipy.misc.imresize(samples[i], (32,32)))
+
+                # save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
+                #             dir_path + '/' + self.model_name + '_epoch%03d' % epoch + '.png')
+            else:
+                samples = samples[:num].data
+                for i in range(num):
+                    scipy.misc.imsave(os.path.join(digit_path, str(i) + '.png'), samples[i])
+                # save_image(samples[:self.sample_num].data, dir_path + '/' + self.model_name + '_epoch%03d' % epoch + '.png',
+                #            padding=0)
+
+        # image_frame_dim = int(np.floor(np.sqrt(self.sample_num)))
+        # if self.conditional:
+        #
+        #
+        #     y = torch.LongTensor(range(self.sample_num)) % self.num_classes
+        #     y = y.view(self.sample_num, 1)
+        #
+        #     y_onehot = torch.FloatTensor(self.sample_num, self.num_classes)
+        #     y_onehot.zero_()
+        #     y_onehot.scatter_(1, y, 1.0)
+        #     y_onehot = variable(y_onehot)
+        # else:
+        #     y_onehot = None
+        #
+        #
+        # if fix:
+        #     """ fixed noise """
+        #     if self.conditional:
+        #         samples = self.G(self.sample_z_, y_onehot)
+        #     else:
+        #         samples = self.G(self.sample_z_)
+        # else:
+        #     """ random noise """
+        #     sample_z_ = variable(self.random_tensor(self.sample_num, self.z_dim), volatile=True)
+        #
+        #     if self.conditional:
+        #         samples = self.G(sample_z_, y_onehot)
+        #     else:
+        #         samples = self.G(self.sample_z_)
+        #
+        # if self.input_size == 1:
+        #     if self.gpu_mode:
+        #         samples = samples.cpu().data.numpy()
+        #     else:
+        #         samples = samples.data.numpy()
+        #     samples = samples.transpose(0, 2, 3, 1)
+        #     save_images(samples[:image_frame_dim * image_frame_dim, :, :, :], [image_frame_dim, image_frame_dim],
+        #                 dir_path + '/' + self.model_name + '_epoch%03d' % epoch + '.png')
+        # else:
+        #     save_image(samples[:self.sample_num].data, dir_path + '/' + self.model_name + '_epoch%03d' % epoch + '.png',
+        #                padding=0)
 
     # produce sample from all classes and return a batch of images and label
     # if no task2generate are given we generate all labellize for all task
